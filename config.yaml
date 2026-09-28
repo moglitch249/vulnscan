@@ -1,0 +1,191 @@
+# =============================================================================
+# VulnScanner Configuration
+# =============================================================================
+# This file controls scanner behavior, source configuration, and scan profiles.
+# Environment variables in .env take precedence for secrets.
+# =============================================================================
+
+scanner:
+  name: "vulnscanner"
+  version: "0.1.0"
+  max_concurrency: 10
+  http_timeout: 30
+  max_retries: 3
+  user_agent: "VulnScanner/0.1.0 (Defensive Security Research)"
+
+# --- Database ---
+database:
+  backend: "sqlite"           # sqlite | postgresql
+  sqlite_path: "data/vulnscanner.db"
+  # postgresql_dsn: "postgresql://user:pass@localhost:5432/vulnscanner"
+
+# --- Logging ---
+logging:
+  level: "INFO"               # DEBUG | INFO | WARNING | ERROR
+  format: "json"              # json | console
+  file: "logs/vulnscanner.log"
+  max_size_mb: 50
+  backup_count: 5
+
+# --- Scan Profiles ---
+profiles:
+  quick:
+    description: "Fast host discovery and top-port scan"
+    nmap_args: ["-sn", "-T4"]          # ping sweep only
+    port_discovery: false
+    service_detection: false
+    os_detection: false
+    vuln_lookup: false
+    max_targets: 1024
+
+  standard:
+    description: "Standard TCP scan with service detection"
+    nmap_args: ["-sV", "--top-ports", "1000", "-T3"]
+    port_discovery: true
+    service_detection: true
+    os_detection: false
+    vuln_lookup: true
+    max_targets: 256
+
+  deep:
+    description: "Full port scan with version, OS, and script detection"
+    nmap_args: ["-sV", "-sC", "-O", "-p-", "-T3"]
+    port_discovery: true
+    service_detection: true
+    os_detection: true
+    vuln_lookup: true
+    max_targets: 64
+
+  web:
+    description: "Web-focused scan with HTTP technology fingerprinting"
+    nmap_args: ["-sV", "-p", "80,443,8080,8443", "-T3"]
+    port_discovery: true
+    service_detection: true
+    os_detection: false
+    vuln_lookup: true
+    http_fingerprint: true
+    max_targets: 128
+
+# --- Vulnerability Sources ---
+sources:
+  nvd:
+    enabled: true
+    base_url: "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    rate_limit_per_30s: 5       # 50 with API key
+    request_delay_s: 6.0        # NIST recommended
+    results_per_page: 200
+    cache_ttl_hours: 24
+    # api_key via NVD_API_KEY env var
+
+  cisa_kev:
+    enabled: true
+    feed_url: "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+    cache_ttl_hours: 12
+    # No API key required — public JSON feed
+
+  osv:
+    enabled: true
+    base_url: "https://api.osv.dev"
+    query_endpoint: "/v1/query"
+    querybatch_endpoint: "/v1/querybatch"
+    vuln_endpoint: "/v1/vulns"
+    cache_ttl_hours: 6
+    # No API key required — no rate limits
+
+  epss:
+    enabled: true
+    api_url: "https://api.first.org/data/v1/epss"
+    bulk_csv_url: "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
+    cache_ttl_hours: 24
+    # No API key required
+
+  ghsa:
+    enabled: true
+    graphql_url: "https://api.github.com/graphql"
+    cache_ttl_hours: 12
+    rate_limit_per_hour: 5000   # GitHub default with token
+    # api_key via GITHUB_TOKEN env var
+
+  vulncheck:
+    enabled: true
+    base_url: "https://api.vulncheck.com"
+    rate_limit_per_min: 1000    # Community tier
+    cache_ttl_hours: 12
+    # api_key via VULNCHECK_API_KEY env var
+
+  exploitdb:
+    enabled: true
+    # No official API — uses local git clone
+    git_repo: "https://gitlab.com/exploit-database/exploitdb.git"
+    local_path: "data/exploitdb"
+    cache_ttl_hours: 168        # Weekly sync
+
+  debian_tracker:
+    enabled: true
+    json_url: "https://security-tracker.debian.org/tracker/data/json"
+    cache_ttl_hours: 24
+
+  redhat:
+    enabled: true
+    base_url: "https://access.redhat.com/hydra/rest/securitydata"
+    csaf_url: "https://security.access.redhat.com/data/csaf/v2/advisories/"
+    cache_ttl_hours: 24
+    # No API key required — CC BY 4.0
+
+  alpine_secdb:
+    enabled: true
+    base_url: "https://secdb.alpinelinux.org"
+    versions: ["v3.21", "v3.22", "v3.23", "v3.24", "edge"]
+    cache_ttl_hours: 24
+
+  go_vulndb:
+    enabled: true
+    base_url: "https://vuln.go.dev"
+    cache_ttl_hours: 24
+    # No API key required — uses OSV format
+
+  rustsec:
+    enabled: true
+    # Data consumed through OSV.dev (preferred) or GitHub advisory-db
+    git_repo: "https://github.com/RustSec/advisory-db.git"
+    osv_ecosystem: "crates.io"
+    cache_ttl_hours: 24
+
+# --- Scanner Tools ---
+tools:
+  nmap:
+    enabled: true
+    binary: "nmap"              # Must be on PATH or absolute path
+    timeout: 600                # Max seconds per scan
+
+  httpx:
+    enabled: false
+    binary: "httpx"
+    timeout: 120
+
+  dnsx:
+    enabled: false
+    binary: "dnsx"
+    timeout: 60
+
+  naabu:
+    enabled: false
+    binary: "naabu"
+    timeout: 300
+
+# --- Reporting ---
+reporting:
+  output_dir: "reports"
+  formats: ["json", "html", "csv"]
+  html_template: "templates/report.html.j2"
+  redact_api_keys: true
+  include_evidence: true
+  include_raw_data: false
+
+# --- Cache ---
+cache:
+  enabled: true
+  backend: "sqlite"            # sqlite | filesystem
+  ttl_default_hours: 24
+  max_size_mb: 500
+  cleanup_interval_hours: 48

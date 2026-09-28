@@ -1,0 +1,1 @@
+"""Vendor advisory sources package."""
